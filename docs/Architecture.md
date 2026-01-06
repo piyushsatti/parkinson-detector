@@ -1,31 +1,31 @@
 # Architecture
 
-This project is a SpeechBrain-based pipeline for binary Parkinson's detection from short speech recordings. The code is organized to separate data preparation, model recipes, and reusable utilities.
+This project packages multiple SpeechBrain recipes behind a shared data-prep and training workflow for binary Parkinson's detection.
 
-## Top-level layout
+## Component diagram (text)
+- **Data prep (scripts/prepare_manifests.py, src/parkinsons_speech/data_prep.py):** walks the raw dataset, infers labels/speakers, computes durations, and writes JSON manifests with a `{data_root}` placeholder.
+- **Recipes (recipes/parkinsons_binary/*):** SpeechBrain experiment folders (train script + YAML) that consume manifests and emit checkpoints, logs, and metrics.
+- **Automation (Makefile, scripts/run_all.sh):** one-command entry points to run manifest prep, individual training, or a sweep across all recipes.
+- **Results/reporting (reports/):** human-readable tables of validation metrics produced after each run.
+- **Prediction stub (scripts/predict.py):** loads a saved checkpoint to score a single WAV file for quick smoke checks.
 
-- `data/` – local datasets and generated manifests (not committed)
-- `recipes/parkinsons_binary/` – model recipes (xvector, ECAPA-TDNN, wav2vec2, WavLM, HuBERT)
-- `scripts/` – CLI helpers for preparing manifests, training sweeps, and prediction
-- `src/parkinsons_speech/` – shared utilities and data prep helpers
-- `reports/` – results tables and figures
-- `results/` – training outputs (checkpoints, logs, metrics)
+## Data model overview
+- **Record manifest fields:** `wav` (path with placeholder), `length` (seconds), `label` (`parkinson`/`not_parkinson`), `speaker` (folder-derived ID).
+- **Splits:** speaker-level (default) uses stratified train/val/test partitions without speaker overlap; file-level stratifies individual examples.
 
-## Data flow
+## Key flows
+1. **Manifest generation:** `scripts/prepare_manifests.py --data_root <path>` → scans WAVs → infers labels/speakers → splits data → writes `data/manifests/{train,valid,test}.json` and `split_summary.json`.
+2. **Training a recipe:** `make train MODEL=xvector` → SpeechBrain train script loads manifests → trains on GPU/CPU → saves checkpoints + logs under `results/xvector/<seed>/`.
+3. **Prediction:** `scripts/predict.py --hparams ... --checkpoint_dir ... --wav ...` → loads trained model → outputs predicted label/score for the supplied audio.
 
-1. **Raw data** lives under `data/raw/` (see `data/README_DATA.md`).
-2. **Manifest generation** uses `scripts/prepare_manifests.py` to build JSON manifests in `data/manifests/`.
-3. **Training** uses a recipe, e.g. `recipes/parkinsons_binary/xvector/train.py` plus its YAML hyperparameters. The `--data_folder` flag points to the raw data root.
-4. **Outputs** are written to `results/<model>/<seed>/` and summarized in `reports/`.
+## Module boundaries and responsibilities
+- `src/parkinsons_speech/data_prep.py`: dataset scanning, label inference, duration calculation, stratified splitting, manifest writing.
+- `src/parkinsons_speech/utils.py`: reproducibility utilities (seeding, directory helpers), waveform cropping, label encoder prep.
+- `src/parkinsons_speech/eval.py`: thin wrappers over scikit-learn metrics and reports.
+- `scripts/*.py`: CLI wrappers that orchestrate the modules without adding training logic.
+- `recipes/parkinsons_binary/*`: SpeechBrain-specific code + hyperparameters, isolated per model.
 
-## Key entry points
-
-- Training: `recipes/parkinsons_binary/<recipe>/train.py`
-- Hyperparameters: `recipes/parkinsons_binary/<recipe>/hparams/train.yaml`
-- Manifests: `scripts/prepare_manifests.py`
-- Prediction stub: `scripts/predict.py`
-
-## Configuration conventions
-
-- Manifests use `{data_root}` placeholders; pass `--data_folder` to training scripts.
-- Splits support speaker-level (default) or file-level via `--split_by` in manifest prep.
+## Why these choices
+- **SpeechBrain recipes** keep experimental configurations explicit and reproducible for portfolio reviewers.
+- **Manifests with `{data_root}` placeholders** allow portable paths across machines (local, Colab, server) without editing YAML.
+- **Make targets + scripts** provide a minimal but predictable developer experience without extra tooling.

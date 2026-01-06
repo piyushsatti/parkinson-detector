@@ -1,66 +1,65 @@
 # Parkinson's Speech Classification with SpeechBrain
 
-Refactored notebook into a reproducible SpeechBrain project for binary Parkinson's detection from short speech recordings.
+Refactored SpeechBrain pipeline for binary Parkinson's detection from short speech recordings using multiple recipe baselines.
 
-## Purpose and Results
+## Demo
+- _No hosted demo yet._ Training produces results tables under `reports/results.md` with per-run metrics.
 
-The goal of this project is to provide a reproducible pipeline for training and evaluating multiple SpeechBrain recipes on the Italian Parkinson Voice & Speech dataset, so model performance can be compared consistently under the same data splits.
+## Features
+- Reproducible SpeechBrain recipes for xvector, ECAPA-TDNN, wav2vec2, WavLM, and HuBERT under a unified `recipes/parkinsons_binary` layout.
+- Automated manifest generation with speaker-level or file-level splits via `scripts/prepare_manifests.py` and the `make data` target.
+- One-command sweep (`make all`) that prepares data, runs every recipe, and appends a summary stub to `reports/results.md`.
+- Simple prediction helper (`scripts/predict.py`) to load a trained checkpoint and score a single WAV file.
 
-Results are captured at the end of each run as metrics (validation error rate and accuracy by default) and stored in `results/<model>/<seed>/` with a summary table appended to `reports/results.md`. See those files for the latest numbers from your runs.
+## Tech Stack
+- Python, Poetry
+- SpeechBrain for training recipes
+- Torchaudio and scikit-learn for audio metadata and evaluation
 
-## Project Layout
+## Architecture Overview
+See `docs/Architecture.md` for a diagram and data flow between manifest prep, recipes, and outputs.
 
-- `data/raw/` – downloaded dataset (not committed)
-- `data/manifests/` – JSON manifests built by `scripts/prepare_manifests.py`
-- `recipes/parkinsons_binary/` – model recipes (xvector, ECAPA-TDNN, wav2vec2, WavLM, HuBERT)
-- `src/parkinsons_speech/` – data prep and utility helpers
-- `scripts/` – CLI for manifest prep, training automation, prediction stub
-- `reports/` – results and figures placeholder
-
-## Setup (Make)
-
-Download and clone the repo, then run:
-
-```
+## Local Setup
+```bash
 git clone <your-repo-url>
 cd parkinson-detector
 
+# Install dependencies
 make install
-```
 
-## Data
-
-1. Download the Italian Parkinson Voice & Speech dataset and place it under `data/raw/italian_parkinson`.
-2. Build manifests (speaker-level split by default):
-
-```
+# (Optional) download the dataset archive to data/raw/italian_parkinson
 make download
+
+# Build manifests (speaker-level split by default)
 make data
 ```
 
-## Train
+## Usage Examples
+- Train a single recipe: `make train MODEL=xvector`
+- Switch recipe: `make train MODEL=ecapa_tdnn` (or `wav2vec2`, `wavlm`, `hubert`)
+- Predict on one WAV: `make predict WAV=path/to/audio.wav CKPT=results/xvector/1234/HPARAMS HP=recipes/parkinsons_binary/xvector/hparams/train.yaml`
+- Run all recipes with manifests: `make all`
 
-Run any recipe with:
-
+## Project Structure
 ```
-make train MODEL=xvector
+.
+├── Makefile                    # Common automation targets
+├── recipes/parkinsons_binary/  # SpeechBrain recipes (code + hparams per model)
+├── scripts/                    # CLI helpers for manifests, training sweeps, prediction
+├── src/parkinsons_speech/      # Data prep, evaluation, and utility helpers
+├── data/                       # Raw data + generated manifests (not committed)
+├── reports/                    # Results tables and figures
+└── docs/                       # Architecture + Colab usage guides
 ```
 
-Swap `xvector` for `ecapa_tdnn`, `wav2vec2`, `wavlm`, or `hubert`. Checkpoints and logs go to `results/<model>/<seed>/`.
+## Known Limitations
+- No automated tests or CI are configured; run commands locally to validate changes.
+- Dataset is not bundled—see `make download` or place the Italian Parkinson Voice & Speech data under `data/raw/italian_parkinson`.
+- Current metrics and checkpoints are local only; `reports/results.md` captures outputs from your own runs.
 
-## One-command sweep
+## Roadmap
+- Add lightweight evaluation scripts for quick health checks.
+- Provide example checkpoints and manifest samples for faster onboarding.
 
-```
-make all
-```
-
-This prepares manifests, trains each recipe, and appends a results table stub to `reports/results.md`.
-
-## Results
-
-See `reports/results.md` for your runs. Default metrics: validation error rate and accuracy (speaker-level split recommended).
-
-## Notes
-
-- Splitting supports `--split_by speaker` (default, no speaker overlap) or `--split_by file` (stratified).
-- `scripts/predict.py` provides a simple checkpoint loader for single-file predictions.
+## License
+MIT
