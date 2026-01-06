@@ -2,6 +2,12 @@
 
 Refactored notebook into a reproducible SpeechBrain project for binary Parkinson's detection from short speech recordings.
 
+## Purpose and Results
+
+The goal of this project is to provide a reproducible pipeline for training and evaluating multiple SpeechBrain recipes on the Italian Parkinson Voice & Speech dataset, so model performance can be compared consistently under the same data splits.
+
+Results are captured at the end of each run as metrics (validation error rate and accuracy by default) and stored in `results/<model>/<seed>/` with a summary table appended to `reports/results.md`. See those files for the latest numbers from your runs.
+
 ## Project Layout
 
 - `data/raw/` – downloaded dataset (not committed)
@@ -11,22 +17,25 @@ Refactored notebook into a reproducible SpeechBrain project for binary Parkinson
 - `scripts/` – CLI for manifest prep, training automation, prediction stub
 - `reports/` – results and figures placeholder
 
-## Setup
+## Setup (Make)
+
+Download and clone the repo, then run:
 
 ```
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-export PYTHONPATH=src:$PYTHONPATH
+git clone <your-repo-url>
+cd parkinson-detector
+
+make install
 ```
 
 ## Data
 
-1. Download the Italian Parkinson Voice & Speech dataset (see `data/README_DATA.md`).
+1. Download the Italian Parkinson Voice & Speech dataset and place it under `data/raw/italian_parkinson`.
 2. Build manifests (speaker-level split by default):
 
 ```
-python scripts/prepare_manifests.py --data_root data/raw/italian_parkinson --out_dir data/manifests --split_by speaker
+make download
+make data
 ```
 
 ## Train
@@ -34,7 +43,7 @@ python scripts/prepare_manifests.py --data_root data/raw/italian_parkinson --out
 Run any recipe with:
 
 ```
-python recipes/parkinsons_binary/xvector/train.py recipes/parkinsons_binary/xvector/hparams/train.yaml --data_folder data/raw/italian_parkinson
+make train MODEL=xvector
 ```
 
 Swap `xvector` for `ecapa_tdnn`, `wav2vec2`, `wavlm`, or `hubert`. Checkpoints and logs go to `results/<model>/<seed>/`.
@@ -42,7 +51,7 @@ Swap `xvector` for `ecapa_tdnn`, `wav2vec2`, `wavlm`, or `hubert`. Checkpoints a
 ## One-command sweep
 
 ```
-bash scripts/run_all.sh data/raw/italian_parkinson
+make all
 ```
 
 This prepares manifests, trains each recipe, and appends a results table stub to `reports/results.md`.
@@ -53,6 +62,5 @@ See `reports/results.md` for your runs. Default metrics: validation error rate a
 
 ## Notes
 
-- Manifest paths use `{data_root}` placeholders; pass `--data_folder` to training scripts.
 - Splitting supports `--split_by speaker` (default, no speaker overlap) or `--split_by file` (stratified).
 - `scripts/predict.py` provides a simple checkpoint loader for single-file predictions.

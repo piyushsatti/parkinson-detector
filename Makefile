@@ -5,7 +5,7 @@ MANIFEST_DIR ?= data/manifests
 MODEL ?= xvector
 DEVICE ?= cpu
 
-.PHONY: help install data download train all predict clean
+.PHONY: help install data download train all predict clean smoke
 
 help:
 	@echo "Targets:"
@@ -16,6 +16,7 @@ help:
 	@echo "  all        Run full sweep (all models)"
 	@echo "  predict    Predict on a wav (WAV=... CKPT=... HP=...)"
 	@echo "  clean      Remove training artifacts"
+	@echo "  smoke      Run lightweight script checks"
 
 install:
 	poetry install
@@ -37,3 +38,6 @@ predict:
 
 clean:
 	rm -rf results
+
+smoke:
+	bash scripts/smoke_check.sh
