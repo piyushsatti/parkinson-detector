@@ -1,0 +1,24 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+.env/
+
+# Data artifacts
+data/raw/
+data/processed/
+data/manifests/*.json
+
+# Training artifacts
+results/
+*/save/
+*.ckpt
+*.pt
+
+# Reports
+reports/figures/
+
+# OS
+.DS_Store

@@ -1,0 +1,109 @@
+seed: 1968
+__set_seed: !apply:speechbrain.utils.seed_everything [!ref <seed>]
+
+project_root: .
+data_folder: !PLACEHOLDER
+manifest_dir: !ref <project_root>/data/manifests
+output_root: !ref <project_root>/results
+output_folder: !ref <output_root>/ecapa_tdnn/<seed>
+save_folder: !ref <output_folder>/save
+train_log: !ref <output_folder>/train_log.txt
+
+train_annotation: !ref <manifest_dir>/train.json
+valid_annotation: !ref <manifest_dir>/valid.json
+test_annotation: !ref <manifest_dir>/test.json
+
+ckpt_interval_minutes: 15
+
+number_of_epochs: 30
+batch_size: 16
+grad_accumulation_factor: 2
+lr: 0.0001
+weight_decay: 0.00002
+base_lr: 0.000001
+max_lr: !ref <lr>
+step_size: 1088
+mode: exp_range
+gamma: 0.9998
+orig_sample_rate: 16000
+sample_rate: 8000
+chunk_duration: 20.0
+shuffle: true
+random_chunk: true
+drop_last: false
+
+n_mels: 80
+left_frames: 0
+right_frames: 0
+deltas: false
+out_n_neurons: 2
+
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+  save_file: !ref <train_log>
+
+error_stats: !name:speechbrain.utils.metric_stats.MetricStats
+  metric: !name:speechbrain.nnet.losses.classification_error
+    reduction: batch
+
+dataloader_options:
+  batch_size: !ref <batch_size>
+  shuffle: !ref <shuffle>
+  num_workers: 2
+  drop_last: !ref <drop_last>
+
+compute_features: !new:speechbrain.lobes.features.Fbank
+  n_mels: !ref <n_mels>
+  left_frames: !ref <left_frames>
+  right_frames: !ref <right_frames>
+  deltas: !ref <deltas>
+
+embedding_model: !new:speechbrain.lobes.models.ECAPA_TDNN.ECAPA_TDNN
+  input_size: !ref <n_mels>
+  channels: [512, 512, 512, 512, 1536]
+  kernel_sizes: [5, 3, 3, 3, 1]
+  dilations: [1, 2, 3, 4, 1]
+  attention_channels: 64
+  lin_neurons: 96
+
+classifier: !new:speechbrain.lobes.models.ECAPA_TDNN.Classifier
+  input_size: 96
+  out_neurons: !ref <out_n_neurons>
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <number_of_epochs>
+
+mean_var_norm: !new:speechbrain.processing.features.InputNormalization
+  norm_type: sentence
+  std_norm: false
+
+modules:
+  compute_features: !ref <compute_features>
+  embedding_model: !ref <embedding_model>
+  classifier: !ref <classifier>
+  mean_var_norm: !ref <mean_var_norm>
+
+compute_cost: !new:speechbrain.nnet.losses.LogSoftmaxWrapper
+  loss_fn: !new:speechbrain.nnet.losses.AdditiveAngularMargin
+    margin: 0.2
+    scale: 30
+
+compute_error: !name:speechbrain.nnet.losses.classification_error
+
+opt_class: !name:torch.optim.Adam
+  lr: !ref <lr>
+  weight_decay: !ref <weight_decay>
+
+lr_annealing: !new:speechbrain.nnet.schedulers.CyclicLRScheduler
+  mode: !ref <mode>
+  gamma: !ref <gamma>
+  base_lr: !ref <base_lr>
+  max_lr: !ref <max_lr>
+  step_size: !ref <step_size>
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+  checkpoints_dir: !ref <save_folder>
+  recoverables:
+    embedding_model: !ref <embedding_model>
+    classifier: !ref <classifier>
+    normalizer: !ref <mean_var_norm>
+    counter: !ref <epoch_counter>

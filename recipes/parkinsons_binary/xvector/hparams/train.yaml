@@ -1,0 +1,90 @@
+seed: 1986
+__set_seed: !!python/object/apply:torch.manual_seed [!ref <seed>]
+
+project_root: .
+data_folder: !PLACEHOLDER
+manifest_dir: !ref <project_root>/data/manifests
+output_root: !ref <project_root>/results
+output_folder: !ref <output_root>/xvector/<seed>
+save_folder: !ref <output_folder>/save
+train_log: !ref <output_folder>/train_log.txt
+
+train_annotation: !ref <manifest_dir>/train.json
+valid_annotation: !ref <manifest_dir>/valid.json
+test_annotation: !ref <manifest_dir>/test.json
+
+chunk_duration: 20.0
+orig_sample_rate: 16000
+sample_rate: 8000
+number_of_epochs: 30
+batch_size: 16
+lr_start: 0.001
+lr_final: 0.00001
+n_classes: 2
+emb_dim: 256
+n_fea: 80
+
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+  save_file: !ref <train_log>
+
+error_stats: !name:speechbrain.utils.metric_stats.MetricStats
+  metric: !name:speechbrain.nnet.losses.classification_error
+    reduction: batch
+
+dataloader_options:
+  batch_size: !ref <batch_size>
+  shuffle: true
+  num_workers: 2
+  drop_last: false
+
+noise_transform: !new:speechbrain.augment.time_domain.AddNoise
+  snr_low: 10
+  snr_high: 20
+
+speed_transform: !new:speechbrain.augment.time_domain.SpeedPerturb
+  orig_freq: !ref <sample_rate>
+  speeds: [0.9, 1.0, 1.1]
+
+feature_extractor: !new:speechbrain.lobes.features.Fbank
+  n_mels: !ref <n_fea>
+
+xvector: !new:speechbrain.lobes.models.Xvector.Xvector
+  activation: !name:torch.nn.LeakyReLU
+  in_channels: !ref <n_fea>
+  lin_neurons: !ref <emb_dim>
+
+classifier: !new:speechbrain.lobes.models.Xvector.Classifier
+  input_shape: [null, null, !ref <emb_dim>]
+  activation: !name:torch.nn.LeakyReLU
+  lin_blocks: 2
+  lin_neurons: !ref <emb_dim>
+  out_neurons: !ref <n_classes>
+
+log_softmax: !new:speechbrain.nnet.activations.Softmax
+  apply_log: true
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <number_of_epochs>
+
+modules:
+  feature_extractor: !ref <feature_extractor>
+  xvector: !ref <xvector>
+  classifier: !ref <classifier>
+
+opt_class: !name:torch.optim.Adam
+  lr: !ref <lr_start>
+
+lr_annealing: !new:speechbrain.nnet.schedulers.LinearScheduler
+  initial_value: !ref <lr_start>
+  final_value: !ref <lr_final>
+  epoch_count: !ref <number_of_epochs>
+
+compute_cost: !name:speechbrain.nnet.losses.nll_loss
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+  checkpoints_dir: !ref <save_folder>
+  recoverables:
+    feature_extractor: !ref <feature_extractor>
+    xvector: !ref <xvector>
+    classifier: !ref <classifier>
+    counter: !ref <epoch_counter>

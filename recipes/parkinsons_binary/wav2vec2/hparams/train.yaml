@@ -1,0 +1,109 @@
+seed: 1986
+__set_seed: !apply:torch.manual_seed [!ref <seed>]
+
+project_root: .
+data_folder: !PLACEHOLDER
+manifest_dir: !ref <project_root>/data/manifests
+output_root: !ref <project_root>/results
+output_folder: !ref <output_root>/wav2vec2/<seed>
+save_folder: !ref <output_folder>/save
+train_log: !ref <output_folder>/train_log.txt
+
+train_annotation: !ref <manifest_dir>/train.json
+valid_annotation: !ref <manifest_dir>/valid.json
+test_annotation: !ref <manifest_dir>/test.json
+
+chunk_duration: 20.0
+orig_sample_rate: 16000
+sample_rate: 8000
+
+sslmodel_hub: facebook/wav2vec2-base-960h
+sslmodel_folder: !ref <save_folder>/ssl_checkpoint
+
+train_logger: !new:speechbrain.utils.train_logger.FileTrainLogger
+  save_file: !ref <train_log>
+
+number_of_epochs: 30
+batch_size: 16
+lr: 0.0001
+lr_ssl: 0.00001
+
+freeze_ssl: false
+freeze_ssl_conv: true
+encoder_dim: 768
+
+out_n_neurons: 2
+
+noise_transform: !new:speechbrain.augment.time_domain.AddNoise
+  snr_low: 10
+  snr_high: 20
+
+speed_transform: !new:speechbrain.augment.time_domain.SpeedPerturb
+  orig_freq: !ref <sample_rate>
+  speeds: [0.9, 1.0, 1.1]
+
+dataloader_options:
+  batch_size: !ref <batch_size>
+  shuffle: true
+  num_workers: 2
+  drop_last: false
+
+ssl_model: !new:speechbrain.lobes.models.huggingface_transformers.wav2vec2.Wav2Vec2
+  source: !ref <sslmodel_hub>
+  output_norm: true
+  freeze: !ref <freeze_ssl>
+  freeze_feature_extractor: !ref <freeze_ssl_conv>
+  save_path: !ref <sslmodel_folder>
+
+avg_pool: !new:speechbrain.nnet.pooling.StatisticsPooling
+  return_std: false
+
+output_mlp: !new:speechbrain.nnet.linear.Linear
+  input_size: !ref <encoder_dim>
+  n_neurons: !ref <out_n_neurons>
+  bias: false
+
+epoch_counter: !new:speechbrain.utils.epoch_loop.EpochCounter
+  limit: !ref <number_of_epochs>
+
+modules:
+  ssl_model: !ref <ssl_model>
+  output_mlp: !ref <output_mlp>
+
+model: !new:torch.nn.ModuleList
+  - [!ref <output_mlp>]
+
+log_softmax: !new:speechbrain.nnet.activations.Softmax
+  apply_log: true
+
+compute_cost: !name:speechbrain.nnet.losses.nll_loss
+
+error_stats: !name:speechbrain.utils.metric_stats.MetricStats
+  metric: !name:speechbrain.nnet.losses.classification_error
+    reduction: batch
+
+opt_class: !name:torch.optim.Adam
+  lr: !ref <lr>
+
+ssl_opt_class: !name:torch.optim.Adam
+  lr: !ref <lr_ssl>
+
+lr_annealing: !new:speechbrain.nnet.schedulers.NewBobScheduler
+  initial_value: !ref <lr>
+  improvement_threshold: 0.0025
+  annealing_factor: 0.9
+  patient: 0
+
+lr_annealing_ssl: !new:speechbrain.nnet.schedulers.NewBobScheduler
+  initial_value: !ref <lr_ssl>
+  improvement_threshold: 0.0025
+  annealing_factor: 0.9
+
+checkpointer: !new:speechbrain.utils.checkpoints.Checkpointer
+  checkpoints_dir: !ref <save_folder>
+  recoverables:
+    model: !ref <model>
+    ssl_model: !ref <ssl_model>
+    lr_annealing_output: !ref <lr_annealing>
+    lr_annealing_ssl: !ref <lr_annealing_ssl>
+    counter: !ref <epoch_counter>
