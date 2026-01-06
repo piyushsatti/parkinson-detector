@@ -10,10 +10,18 @@ from sklearn.model_selection import train_test_split
 logger = logging.getLogger(__name__)
 
 
-LABEL_MAP = {
-    "parkinson": ["28 people with parkinson", "parkinson"],
-    "not_parkinson": ["15 young healthy control", "22 elderly healthy control", "healthy control"],
+PARKINSON_FOLDERS = {
+    "28 people with parkinson's disease",
 }
+
+CONTROL_FOLDERS = {
+    "15 young healthy control",
+    "22 elderly healthy control",
+}
+
+
+def _normalize_part(part: str) -> str:
+    return part.lower().replace("’", "'")
 
 
 @dataclass
@@ -29,10 +37,11 @@ class Record:
 
 def infer_label(path: Path) -> str:
     """Infer a binary label from the file path."""
-    path_str = str(path).lower()
-    for label, hints in LABEL_MAP.items():
-        if any(hint in path_str for hint in hints):
-            return label
+    parts = {_normalize_part(p) for p in path.parts}
+    if parts & PARKINSON_FOLDERS:
+        return "parkinson"
+    if parts & CONTROL_FOLDERS:
+        return "not_parkinson"
     logger.warning("Falling back to unknown label for path=%s", path)
     return "unknown"
 
@@ -44,10 +53,23 @@ def infer_speaker_id(path: Path) -> str:
 
 def compute_duration(path: Path) -> float:
     """Compute duration in seconds using torchaudio.info."""
-    info = torchaudio.info(str(path))
-    if info.sample_rate == 0:
-        raise ValueError(f"Invalid sample rate for {path}")
-    return info.num_frames / info.sample_rate
+    try:
+        info = torchaudio.info(str(path))
+        if info.sample_rate == 0:
+            raise ValueError(f"Invalid sample rate for {path}")
+        return info.num_frames / info.sample_rate
+    except RuntimeError as exc:
+        try:
+            import soundfile as sf
+        except ImportError as import_exc:
+            raise RuntimeError(
+                "torchaudio backend not available; install soundfile "
+                "(and libsndfile) to read wav metadata."
+            ) from import_exc
+        with sf.SoundFile(str(path)) as f:
+            if f.samplerate == 0:
+                raise ValueError(f"Invalid sample rate for {path}")
+            return len(f) / f.samplerate
 
 
 def build_manifest(records: Iterable[Record]) -> Dict[str, Dict]:
