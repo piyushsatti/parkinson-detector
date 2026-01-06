@@ -12,7 +12,7 @@ import torch  # noqa: E402
 import torchaudio  # noqa: E402
 from hyperpyyaml import load_hyperpyyaml  # noqa: E402
 
-from parkinsons_speech.utils import random_crop  # noqa: E402
+from parkinsons_speech.utils import prepare_label_encoder, random_crop  # noqa: E402
 
 
 class ParkinsonBrain(sb.Brain):
@@ -106,16 +106,16 @@ def dataio_prep(hparams):
             output_keys=["id", "sig", "label_encoded"],
         )
 
-    lab_enc_file = os.path.join(hparams["save_folder"], "label_encoder.txt")
-    label_encoder.load_or_create(
-        path=lab_enc_file, from_didatasets=[datasets["train"]], output_key="label"
+    label_encoder = prepare_label_encoder(
+        datasets, hparams["save_folder"], output_key="label", expected_len=hparams["n_classes"]
     )
-    label_encoder.expect_len(hparams["n_classes"])
     return datasets
 
 
 if __name__ == "__main__":
     hparams_file, run_opts, overrides = sb.parse_arguments(sys.argv[1:])
+    if str(run_opts.get("device", "")).startswith("cuda") and not torch.cuda.is_available():
+        run_opts["device"] = "cpu"
 
     with open(hparams_file) as fin:
         hparams = load_hyperpyyaml(fin, overrides)

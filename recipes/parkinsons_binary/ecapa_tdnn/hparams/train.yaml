@@ -48,7 +48,7 @@ error_stats: !name:speechbrain.utils.metric_stats.MetricStats
 dataloader_options:
   batch_size: !ref <batch_size>
   shuffle: !ref <shuffle>
-  num_workers: 2
+  num_workers: 0
   drop_last: !ref <drop_last>
 
 compute_features: !new:speechbrain.lobes.features.Fbank

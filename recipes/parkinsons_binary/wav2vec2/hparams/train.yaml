@@ -34,18 +34,18 @@ encoder_dim: 768
 
 out_n_neurons: 2
 
-noise_transform: !new:speechbrain.augment.time_domain.AddNoise
+noise_transform: !new:speechbrain.processing.speech_augmentation.AddNoise
   snr_low: 10
   snr_high: 20
 
-speed_transform: !new:speechbrain.augment.time_domain.SpeedPerturb
+speed_transform: !new:speechbrain.processing.speech_augmentation.SpeedPerturb
   orig_freq: !ref <sample_rate>
-  speeds: [0.9, 1.0, 1.1]
+  speeds: [90, 100, 110]
 
 dataloader_options:
   batch_size: !ref <batch_size>
   shuffle: true
-  num_workers: 2
+  num_workers: 0
   drop_last: false
 
 ssl_model: !new:speechbrain.lobes.models.huggingface_transformers.wav2vec2.Wav2Vec2
